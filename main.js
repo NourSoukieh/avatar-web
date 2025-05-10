@@ -5,16 +5,17 @@ import * as THREE     from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const canvas = document.getElementById('avatar');
-const scene  = new THREE.Scene();           // transparent background
+const scene  = new THREE.Scene();  // transparent background
 
 // ---- Camera ----
+// Lowered and pulled back so full figure fits
 const camera = new THREE.PerspectiveCamera(
   50,
   window.innerWidth / window.innerHeight,
   0.1,
   100
 );
-camera.position.set(0, 2.5, 4);
+camera.position.set(0, 1.2, 4);
 camera.lookAt(0, 1, 0);
 
 // ---- Renderer ----
@@ -30,7 +31,7 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ---- Studio-style Lighting ----
+// ---- Studio‐style Lighting ----
 scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.7));
 
 const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -45,6 +46,10 @@ const rimLight = new THREE.DirectionalLight(0xffffff, 0.4);
 rimLight.position.set(0, 4, -5);
 scene.add(rimLight);
 
+const groundLight = new THREE.PointLight(0xffffff, 0.3, 10);
+groundLight.position.set(0, 0.5, 0);
+scene.add(groundLight);
+
 // ---- Load & Pose Avatar ----
 const loader = new GLTFLoader();
 let mixer, morphDict, avatarMesh;
@@ -55,21 +60,25 @@ loader.load(
     console.log('✅ avatar.glb loaded');
     const avatar = gltf.scene;
 
-    // Center & frame the model
+    // 1) Compute bounding‐box
     const box    = new THREE.Box3().setFromObject(avatar);
     const size   = box.getSize(new THREE.Vector3());
+    const minY   = box.min.y;
     const center = box.getCenter(new THREE.Vector3());
-    avatar.position.sub(center);          // move pivot to center
-    avatar.position.y += size.y * 0.4;       // lift so feet sit on ground
 
-    // Lower the arms: rotate upper-arm bones
+    // 2) Center horizontally
+    avatar.position.sub(center);
+
+    // 3) Place feet at y=0, then lower whole model by 30% of its height
+    avatar.position.y -= minY;
+    avatar.position.y -= size.y * 0.30;
+
+    // 4) Rotate arms down and cache mesh for morphs
     avatar.traverse(obj => {
-      if (obj.isBone) {
-        if (obj.name.includes('LeftArm') || obj.name.includes('RightArm')) {
-          obj.rotation.x = -Math.PI / 4;  // rotate downward 45°
-        }
+      if (obj.isBone &&
+          (obj.name.includes('LeftArm') || obj.name.includes('RightArm'))) {
+        obj.rotation.x = -Math.PI / 4;  // lower arms 45°
       }
-      // cache the skinned mesh for morphs
       if (obj.isMesh && obj.morphTargetDictionary) {
         avatarMesh = obj;
         morphDict  = obj.morphTargetDictionary;
@@ -79,7 +88,7 @@ loader.load(
     scene.add(avatar);
     mixer = new THREE.AnimationMixer(avatar);
 
-    // start natural blinking
+    // Start blinking
     startBlinking();
   },
   undefined,
@@ -98,29 +107,30 @@ animate();
 //--------------------------------------------------------------------
 // Helpers
 
-// set/reset blend-shape by name
+// Blend‐shape expression helper
 function setExpression(name, weight = 1, duration = 300) {
   if (!morphDict || !avatarMesh) return;
   const idx = morphDict[name];
   if (idx === undefined) return;
   avatarMesh.morphTargetInfluences[idx] = weight;
-  setTimeout(() => avatarMesh.morphTargetInfluences[idx] = 0, duration);
+  setTimeout(() => {
+    avatarMesh.morphTargetInfluences[idx] = 0;
+  }, duration);
 }
 
-// blinking at 3–6s intervals
+// Natural blinking at 3–6s intervals
 function startBlinking() {
-  function blink() {
+  (function blink() {
     setExpression('blink', 1.0, 150);
     setTimeout(blink, 3000 + Math.random() * 3000);
-  }
-  blink();
+  })();
 }
 
 //--------------------------------------------------------------------
 // Entry point for Flutter/WebView
 
 window.receiveFromFlutter = async ({ text }) => {
-  // 1) Emotional cue
+  // 1) Expression based on content
   if (/[!?]$/.test(text.trim())) {
     setExpression('browRaise', 1.0, 800);
   } else if (text.toLowerCase().includes('sorry')) {
@@ -129,7 +139,7 @@ window.receiveFromFlutter = async ({ text }) => {
     setExpression('smile', 0.6, 800);
   }
 
-  // 2) Speak + lip-sync
+  // 2) Speak + lip-sync via Web Speech API
   return new Promise(resolve => {
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'en-US';
@@ -140,7 +150,9 @@ window.receiveFromFlutter = async ({ text }) => {
                   ?? morphDict['viseme_A'] 
                   ?? 0;
       avatarMesh.morphTargetInfluences[viseme] = 1;
-      setTimeout(() => avatarMesh.morphTargetInfluences[viseme] = 0, 100);
+      setTimeout(() => {
+        avatarMesh.morphTargetInfluences[viseme] = 0;
+      }, 100);
     };
 
     utter.onend = () => {
