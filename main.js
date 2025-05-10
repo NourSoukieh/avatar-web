@@ -62,7 +62,7 @@ loader.load(
 
     avatar.position.sub(center);      // center pivot
     avatar.position.y -= minY;        // feet to y=0
-    //avatar.position.y -= size.y * 0.20; // lower only 20% of height
+    avatar.position.y += size.y * 0.20; // lower only 20% of height
 
     // --- drop arms and cache mesh for morphs ---
     avatar.traverse(obj => {
