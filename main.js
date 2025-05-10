@@ -14,7 +14,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   100
 );
-// lowered slightly, pulled back
+// lower Y a bit, pull back Z for full frame
 camera.position.set(0, 1.2, 4);
 camera.lookAt(0, 1, 0);
 
@@ -33,16 +33,22 @@ window.addEventListener('resize', () => {
 
 // ---- Studio‐style Lighting ----
 scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.7));
+
 const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
 keyLight.position.set(3, 5, 3);
 scene.add(keyLight);
+
 const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
 fillLight.position.set(-3, 2, -2);
 scene.add(fillLight);
+
 const rimLight = new THREE.DirectionalLight(0xffffff, 0.4);
 rimLight.position.set(0, 4, -5);
 scene.add(rimLight);
-scene.add(new THREE.PointLight(0xffffff, 0.3, 10).set(0,0.5,0));  // ground‐bounce
+
+const groundLight = new THREE.PointLight(0xffffff, 0.3, 10);
+groundLight.position.set(0, 0.5, 0);
+scene.add(groundLight);
 
 // ---- Load & Pose Avatar ----
 const loader = new GLTFLoader();
@@ -55,24 +61,28 @@ loader.load(
     const avatar = gltf.scene;
 
     // --- center & vertical position ---
-    const box    = new THREE.Box3().setFromObject(avatar);
-    const size   = box.getSize(new THREE.Vector3());
-    const minY   = box.min.y;
-    const center = box.getCenter(new THREE.Vector3());
+    const box     = new THREE.Box3().setFromObject(avatar);
+    const size    = box.getSize(new THREE.Vector3());
+    const minY    = box.min.y;
+    const center  = box.getCenter(new THREE.Vector3());
 
-    avatar.position.sub(center);      // center pivot
-    avatar.position.y -= minY;        // feet to y=0
-    avatar.position.y += size.y * 0.20; // lower only 20% of height
+    // center pivot to origin
+    avatar.position.sub(center);
+    // move feet to y=0
+    avatar.position.y -= minY;
+    // then lift up by 20% of height (instead of lowering)
+    avatar.position.y += size.y * 0.20;
 
     // --- drop arms and cache mesh for morphs ---
     avatar.traverse(obj => {
       if (obj.isBone) {
-        // rotate T‐pose arms down
         if (obj.name.includes('LeftArm')) {
-          obj.rotation.set(0, 0, -Math.PI / 2);
+          // rotate left arm down along Z
+          obj.rotation.set(0, 0,  Math.PI / 2);
         }
         if (obj.name.includes('RightArm')) {
-          obj.rotation.set(0, 0,  Math.PI / 2);
+          // rotate right arm down along Z
+          obj.rotation.set(0, 0, -Math.PI / 2);
         }
       }
       if (obj.isMesh && obj.morphTargetDictionary) {
@@ -83,6 +93,8 @@ loader.load(
 
     scene.add(avatar);
     mixer = new THREE.AnimationMixer(avatar);
+
+    // start blinking
     startBlinking();
   },
   undefined,
@@ -105,7 +117,9 @@ function setExpression(name, weight = 1, duration = 300) {
   const idx = morphDict[name];
   if (idx === undefined) return;
   avatarMesh.morphTargetInfluences[idx] = weight;
-  setTimeout(() => avatarMesh.morphTargetInfluences[idx] = 0, duration);
+  setTimeout(() => {
+    avatarMesh.morphTargetInfluences[idx] = 0;
+  }, duration);
 }
 
 function startBlinking() {
@@ -119,7 +133,7 @@ function startBlinking() {
 // Flutter bridge
 
 window.receiveFromFlutter = async ({ text }) => {
-  // emotion
+  // Emotional cue
   if (/[!?]$/.test(text.trim())) {
     setExpression('browRaise', 1, 800);
   } else if (text.toLowerCase().includes('sorry')) {
@@ -128,7 +142,7 @@ window.receiveFromFlutter = async ({ text }) => {
     setExpression('smile', 0.6, 800);
   }
 
-  // speak + lip-sync
+  // Speak + lip-sync
   return new Promise(res => {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-US';
@@ -136,7 +150,9 @@ window.receiveFromFlutter = async ({ text }) => {
       if (!morphDict || !avatarMesh) return;
       const vis = morphDict['viseme_O'] ?? morphDict['viseme_A'] ?? 0;
       avatarMesh.morphTargetInfluences[vis] = 1;
-      setTimeout(() => avatarMesh.morphTargetInfluences[vis] = 0, 100);
+      setTimeout(() => {
+        avatarMesh.morphTargetInfluences[vis] = 0;
+      }, 100);
     };
     u.onend = () => {
       if (morphDict && avatarMesh) {
