@@ -60,7 +60,7 @@ loader.load(
     const size   = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
     avatar.position.sub(center);          // move pivot to center
-    avatar.position.y += size.y / 2;      // lift so feet sit on ground
+    avatar.position.y += size.y * 0.4;       // lift so feet sit on ground
 
     // Lower the arms: rotate upper-arm bones
     avatar.traverse(obj => {
