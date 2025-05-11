@@ -24,9 +24,13 @@ scene.add(groundLight);
 
 // ——— CAMERA & RENDERER ———
 // tighter FOV + closer for a zoomed-in view
-const camera = new THREE.PerspectiveCamera(40, window.innerWidth/window.innerHeight, 0.1, 100);
-camera.position.set(0, 1.3, 2.5);
-camera.lookAt(0, 1, 0);
+const camera = new THREE.PerspectiveCamera(25, window.innerWidth / window.innerHeight, 0.1, 100);
+
+// Pull the camera in closer on Z, and raise it slightly on Y
+camera.position.set(0, 1.4, 2.0);
+
+// Aim a little above the model's origin—towards the head
+camera.lookAt(0, 1.3, 0);
 
 const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -111,6 +115,7 @@ function resetAll() {
 
 // ——— FLUTTER BRIDGE ———
 window.receiveFromFlutter = async ({ text, audioBase64 }) => {
+  console.log('▶️ receiveFromFlutter called with', text, audioBase64?.slice(0,30));
   // 1) Facial cues
   if (/[!?]$/.test(text.trim())) {
     setExpression('browOuterUpLeft', 1, 800);
