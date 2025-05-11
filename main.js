@@ -24,9 +24,9 @@ const loader     = new GLTFLoader();
 let mixer, morphDict, avatarMesh;
 
 loader.load(
-  './NewAvatar.glb',
+  './FinalAvatar.glb',
   gltf => {
-    console.log('✅ NewAvatar.glb loaded');
+    console.log('✅ FinalAvatar.glb loaded');
     const avatar = gltf.scene;
 
     // center & vertical position
