@@ -4,79 +4,78 @@ console.log('✅ main.js loaded');
 import * as THREE     from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-const canvas   = document.getElementById('avatar');
-const scene    = new THREE.Scene();
+const canvas = document.getElementById('avatar');
+const scene  = new THREE.Scene();
 
 // ——— BRIGHT THREE-POINT LIGHTING ———
-// Key light
-const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
-keyLight.position.set(5, 10, 5);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 1.0));  // bright fill
+const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
+keyLight.position.set(3, 10, 5);
 scene.add(keyLight);
-
-// Fill light
-const fillLight = new THREE.DirectionalLight(0xffffff, 0.6);
-fillLight.position.set(-5, 5, 5);
+const fillLight = new THREE.DirectionalLight(0xffffff, 1.0);
+fillLight.position.set(-3, 5, 5);
 scene.add(fillLight);
-
-// Rim light (back light)
-const rimLight = new THREE.DirectionalLight(0xffffff, 0.4);
+const rimLight = new THREE.DirectionalLight(0xffffff, 0.7);
 rimLight.position.set(0, 5, -5);
 scene.add(rimLight);
-
-// Ambient to soften shadows
-const ambient = new THREE.AmbientLight(0xffffff, 0.3);
-scene.add(ambient);
+const groundLight = new THREE.PointLight(0xffffff, 0.5, 10);
+groundLight.position.set(0, 0.3, 0);
+scene.add(groundLight);
 
 // ——— CAMERA & RENDERER ———
-const camera   = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, 1.2, 4);
+// tighter FOV + closer for a zoomed-in view
+const camera = new THREE.PerspectiveCamera(40, window.innerWidth/window.innerHeight, 0.1, 100);
+camera.position.set(0, 1.3, 2.5);
 camera.lookAt(0, 1, 0);
 
 const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.aspect = window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ---- Load & Position Avatar ----
-const loader     = new GLTFLoader();
+// ——— LOAD & FRAME AVATAR ———
+const loader = new GLTFLoader();
 let mixer, morphDict, avatarMesh;
 
-loader.load(
-  `./FinalAvatarCoach.glb?cachebuster=${Date.now()}`,
-  gltf => {
-    console.log('✅ FinalAvatarCoach.glb loaded');
-    const avatar = gltf.scene;
+loader.load(`./FinalAvatarCoach.glb?cb=${Date.now()}`, gltf => {
+  console.log('✅ FinalAvatarCoach.glb loaded');
+  const avatar = gltf.scene;
 
-    // center & vertical position
-    const box    = new THREE.Box3().setFromObject(avatar);
-    const size   = box.getSize(new THREE.Vector3());
-    const minY   = box.min.y;
-    const center = box.getCenter(new THREE.Vector3());
+  // compute bounding box
+  const box  = new THREE.Box3().setFromObject(avatar);
+  const size = box.getSize(new THREE.Vector3());
+  const minY = box.min.y;
+  const center = box.getCenter(new THREE.Vector3());
 
-    avatar.position.sub(center);
-    avatar.position.y -= minY;
-    avatar.position.y += size.y * 0.20;
+  // center pivot & position
+  avatar.position.sub(center);
+  avatar.position.y -= minY;                 // feet at y=0
+  avatar.position.y += size.y * 0.15;        // lift head into view
 
-    // grab skinned mesh for morph targets
-    avatar.traverse(obj => {
-      if (obj.isMesh && obj.morphTargetDictionary) {
-        avatarMesh = obj;
-        morphDict  = obj.morphTargetDictionary;
+  // cache mesh & dict, drop arms
+  avatar.traverse(obj => {
+    if (obj.isMesh && obj.morphTargetDictionary) {
+      avatarMesh = obj;
+      morphDict  = obj.morphTargetDictionary;
+    }
+    if (obj.isBone && obj.name.toLowerCase().includes('upperarm')) {
+      if (obj.name.toLowerCase().includes('right')) {
+        obj.rotation.z = -Math.PI / 2;
+      } else {
+        obj.rotation.z = Math.PI / 2;
       }
-    });
+    }
+  });
 
-    scene.add(avatar);
-    mixer = new THREE.AnimationMixer(avatar);
-    startBlinking();
-  },
-  undefined,
-  err => console.error('❌ GLB load error:', err)
-);
+  scene.add(avatar);
+  mixer = new THREE.AnimationMixer(avatar);
+  startBlinking();
+}, undefined, e => console.error('❌ GLB load error:', e));
 
-// ---- Animation Loop ----
+// ——— RENDER LOOP ———
 const clock = new THREE.Clock();
 (function animate() {
   requestAnimationFrame(animate);
@@ -84,13 +83,11 @@ const clock = new THREE.Clock();
   renderer.render(scene, camera);
 })();
 
-//--------------------------------------------------------------------
-// Helpers (expressions & blinking)
-
+// ——— HELPERS ———
 function setExpression(name, weight = 1, duration = 300) {
   if (!morphDict || !avatarMesh) return;
   const idx = morphDict[name];
-  if (idx === undefined) return;
+  if (idx == null) return;
   avatarMesh.morphTargetInfluences[idx] = weight;
   setTimeout(() => {
     avatarMesh.morphTargetInfluences[idx] = 0;
@@ -105,44 +102,42 @@ function startBlinking() {
   })();
 }
 
-//--------------------------------------------------------------------
-// Flutter bridge (facial cues & lip-sync)
+function resetAll() {
+  if (!morphDict || !avatarMesh) return;
+  Object.values(morphDict).forEach(i => {
+    avatarMesh.morphTargetInfluences[i] = 0;
+  });
+}
 
-window.receiveFromFlutter = async ({ text }) => {
+// ——— FLUTTER BRIDGE ———
+window.receiveFromFlutter = async ({ text, audioBase64 }) => {
+  // 1) Facial cues
   if (/[!?]$/.test(text.trim())) {
-    setExpression('browOuterUpLeft',  1, 800);
-    setExpression('browOuterUpRight', 1, 800);
-  } else if (text.toLowerCase().includes('sorry')) {
+    setExpression('browOuterUpLeft', 1, 800);
+    setExpression('browOuterUpRight',1, 800);
+  } else if (text.toLowerCase().contains('sorry')) {
     setExpression('mouthFrownLeft',  0.8, 800);
     setExpression('mouthFrownRight', 0.8, 800);
   } else {
     setExpression('mouthSmile', 0.6, 800);
   }
 
-  return new Promise(res => {
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'en-US';
+  // 2) Play Flutter-generated audio
+  if (audioBase64) {
+    return new Promise(resolve => {
+      const audio = new Audio('data:audio/mp3;base64,' + audioBase64);
+      audio.onplay = () => {
+        const vis = morphDict['viseme_O'] ?? morphDict['viseme_A'] ?? 0;
+        avatarMesh.morphTargetInfluences[vis] = 1;
+      };
+      audio.onended = () => {
+        resetAll();
+        resolve();
+      };
+      audio.play();
+    });
+  }
 
-    u.onboundary = () => {
-      if (!morphDict || !avatarMesh) return;
-      const idx = morphDict['viseme_O'] ?? morphDict['viseme_aa'];
-      if (idx !== undefined) {
-        avatarMesh.morphTargetInfluences[idx] = 1;
-        setTimeout(() => {
-          avatarMesh.morphTargetInfluences[idx] = 0;
-        }, 100);
-      }
-    };
-
-    u.onend = () => {
-      if (morphDict && avatarMesh) {
-        Object.values(morphDict).forEach(i => {
-          avatarMesh.morphTargetInfluences[i] = 0;
-        });
-      }
-      res();
-    };
-
-    speechSynthesis.speak(u);
-  });
+  // no fallback
+  return Promise.resolve();
 };
