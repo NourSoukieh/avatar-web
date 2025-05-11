@@ -6,6 +6,9 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const canvas   = document.getElementById('avatar');
 const scene    = new THREE.Scene();       // no lights added
+const sun = new THREE.DirectionalLight(0xffffff, 0.4);
+sun.position.set(1, 2, 3);
+scene.add(sun);
 const camera   = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
 const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
 
@@ -26,7 +29,7 @@ let mixer, morphDict, avatarMesh;
 loader.load(
   './FinalAvatarLight.glb',
   gltf => {
-    console.log('✅ FinalAvatar.glb loaded');
+    console.log('✅ FinalAvatarLight.glb loaded');
     const avatar = gltf.scene;
 
     // center & vertical position
