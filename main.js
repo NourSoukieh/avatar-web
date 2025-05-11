@@ -5,16 +5,34 @@ import * as THREE     from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const canvas   = document.getElementById('avatar');
-const scene    = new THREE.Scene();       // no lights added
-const sun = new THREE.DirectionalLight(0xffffff, 0.4);
-sun.position.set(1, 2, 3);
-scene.add(sun);
-const camera   = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
-const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+const scene    = new THREE.Scene();
 
+// ——— BRIGHT THREE-POINT LIGHTING ———
+// Key light
+const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
+keyLight.position.set(5, 10, 5);
+scene.add(keyLight);
+
+// Fill light
+const fillLight = new THREE.DirectionalLight(0xffffff, 0.6);
+fillLight.position.set(-5, 5, 5);
+scene.add(fillLight);
+
+// Rim light (back light)
+const rimLight = new THREE.DirectionalLight(0xffffff, 0.4);
+rimLight.position.set(0, 5, -5);
+scene.add(rimLight);
+
+// Ambient to soften shadows
+const ambient = new THREE.AmbientLight(0xffffff, 0.3);
+scene.add(ambient);
+
+// ——— CAMERA & RENDERER ———
+const camera   = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(0, 1.2, 4);
 camera.lookAt(0, 1, 0);
 
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -22,12 +40,12 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ---- Load & Position Avatar (no arm-pose edits) ----
+// ---- Load & Position Avatar ----
 const loader     = new GLTFLoader();
 let mixer, morphDict, avatarMesh;
 
 loader.load(
-  './FinalAvatarCoach.glb?cachebuster=${Date.now()}',
+  `./FinalAvatarCoach.glb?cachebuster=${Date.now()}`,
   gltf => {
     console.log('✅ FinalAvatarCoach.glb loaded');
     const avatar = gltf.scene;
@@ -38,11 +56,11 @@ loader.load(
     const minY   = box.min.y;
     const center = box.getCenter(new THREE.Vector3());
 
-    avatar.position.sub(center);  // center pivot
-    avatar.position.y -= minY;    // feet at y=0
-    avatar.position.y += size.y * 0.20; // lift by 20%
+    avatar.position.sub(center);
+    avatar.position.y -= minY;
+    avatar.position.y += size.y * 0.20;
 
-    // grab the skinned mesh & its morph targets
+    // grab skinned mesh for morph targets
     avatar.traverse(obj => {
       if (obj.isMesh && obj.morphTargetDictionary) {
         avatarMesh = obj;
@@ -67,7 +85,7 @@ const clock = new THREE.Clock();
 })();
 
 //--------------------------------------------------------------------
-// Helpers
+// Helpers (expressions & blinking)
 
 function setExpression(name, weight = 1, duration = 300) {
   if (!morphDict || !avatarMesh) return;
@@ -88,10 +106,9 @@ function startBlinking() {
 }
 
 //--------------------------------------------------------------------
-// Flutter bridge
+// Flutter bridge (facial cues & lip-sync)
 
 window.receiveFromFlutter = async ({ text }) => {
-  // 1) Emotional cue
   if (/[!?]$/.test(text.trim())) {
     setExpression('browOuterUpLeft',  1, 800);
     setExpression('browOuterUpRight', 1, 800);
@@ -102,14 +119,12 @@ window.receiveFromFlutter = async ({ text }) => {
     setExpression('mouthSmile', 0.6, 800);
   }
 
-  // 2) Speak + primitive lip-sync
   return new Promise(res => {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-US';
 
     u.onboundary = () => {
       if (!morphDict || !avatarMesh) return;
-      // try a common vowel viseme
       const idx = morphDict['viseme_O'] ?? morphDict['viseme_aa'];
       if (idx !== undefined) {
         avatarMesh.morphTargetInfluences[idx] = 1;
@@ -121,7 +136,6 @@ window.receiveFromFlutter = async ({ text }) => {
 
     u.onend = () => {
       if (morphDict && avatarMesh) {
-        // reset everything
         Object.values(morphDict).forEach(i => {
           avatarMesh.morphTargetInfluences[i] = 0;
         });
