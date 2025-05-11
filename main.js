@@ -27,7 +27,7 @@ const loader     = new GLTFLoader();
 let mixer, morphDict, avatarMesh;
 
 loader.load(
-  './FinalAvatarLight.glb',
+  './FinalAvatarLight.glb?cachebuster=${Date.now()}',
   gltf => {
     console.log('✅ FinalAvatarLight.glb loaded');
     const avatar = gltf.scene;
