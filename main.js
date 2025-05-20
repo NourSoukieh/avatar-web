@@ -6,6 +6,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const canvas = document.getElementById('avatar');
 const scene  = new THREE.Scene();
+let avatarRoot; // for idle rotation
 
 // ——— BRIGHT THREE-POINT LIGHTING ———
 scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 1.0));  // bright fill
@@ -23,11 +24,13 @@ groundLight.position.set(0, 0.3, 0);
 scene.add(groundLight);
 
 // ——— CAMERA & RENDERER ———
-// tighter FOV + closer for a zoomed-in view
-const camera = new THREE.PerspectiveCamera(25, window.innerWidth / window.innerHeight, 0.1, 100);
-// Pull the camera in closer on Z, and raise it slightly on Y
+const camera = new THREE.PerspectiveCamera(
+  25,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  100
+);
 camera.position.set(0, 1.4, 3.0);
-// Aim a little above the model's origin—towards the head
 camera.lookAt(0, 1.3, 0);
 
 const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
@@ -41,55 +44,67 @@ window.addEventListener('resize', () => {
 // ——— LOAD & FRAME AVATAR ———
 const loader = new GLTFLoader();
 let mixer, morphDict, avatarMesh;
+loader.load(
+  `./FinalAvatarCoach.glb?cb=${Date.now()}`,
+  gltf => {
+    console.log('✅ FinalAvatarCoach.glb loaded');
+    avatarRoot = gltf.scene;
+    const avatar = avatarRoot;
 
-loader.load(`./FinalAvatarCoach.glb?cb=${Date.now()}`, gltf => {
-  console.log('✅ FinalAvatarCoach.glb loaded');
-  const avatar = gltf.scene;
+    // compute bounding box
+    const box    = new THREE.Box3().setFromObject(avatar);
+    const size   = box.getSize(new THREE.Vector3());
+    const minY   = box.min.y;
+    const center = box.getCenter(new THREE.Vector3());
 
-  // compute bounding box
-  const box    = new THREE.Box3().setFromObject(avatar);
-  const size   = box.getSize(new THREE.Vector3());
-  const minY   = box.min.y;
-  const center = box.getCenter(new THREE.Vector3());
+    // center pivot & position
+    avatar.position.sub(center);
+    avatar.position.y -= minY;                 // feet at y=0
+    avatar.position.y += size.y * 0.15;        // lift head into view
 
-  // center pivot & position
-  avatar.position.sub(center);
-  avatar.position.y -= minY;                 // feet at y=0
-  avatar.position.y += size.y * 0.15;        // lift head into view
-
-  // cache mesh & dict, drop arms
-  avatar.traverse(obj => {
-    if (obj.isMesh && obj.morphTargetDictionary) {
-      avatarMesh = obj;
-      morphDict  = obj.morphTargetDictionary;
-    }
-    if (obj.isBone && obj.name.toLowerCase().includes('upperarm')) {
-      if (obj.name.toLowerCase().includes('right')) {
-        obj.rotation.z = -Math.PI / 2;
-      } else {
-        obj.rotation.z = Math.PI / 2;
+    // cache mesh & dict, drop arms
+    avatar.traverse(obj => {
+      if (obj.isMesh && obj.morphTargetDictionary) {
+        avatarMesh = obj;
+        morphDict  = obj.morphTargetDictionary;
       }
-    }
-  });
+      if (obj.isBone && obj.name.toLowerCase().includes('upperarm')) {
+        if (obj.name.toLowerCase().includes('right')) {
+          obj.rotation.z = -Math.PI / 2;
+        } else {
+          obj.rotation.z = Math.PI / 2;
+        }
+      }
+    });
 
-  // — sanity-check: list morph keys & test shapes —
-  console.log('🔍 Morph target keys:', Object.keys(morphDict || {}));
-  console.log('🔍 gltf.animations:', gltf.animations.map(a => a.name));
-  // test blink & mouth-open
-  setExpression('eyeBlinkLeft',  1.0, 1000);
-  setExpression('eyeBlinkRight', 1.0, 1000);
-  setTimeout(() => setExpression('mouthOpen', 1.0, 1000), 1200);
-  // — end sanity-check —
+    // — sanity-check: list morph keys & test shapes —
+    console.log('🔍 Morph target keys:', Object.keys(morphDict || {}));
+    console.log('🔍 gltf.animations:', gltf.animations.map(a => a.name));
+    // test blink & mouth-open
+    setExpression('eyeBlinkLeft',  1.0, 2000);
+    setExpression('eyeBlinkRight', 1.0, 2000);
+    setTimeout(() => setExpression('mouthOpen', 1.0, 2000), 2500);
+    // — end sanity-check —
 
-  scene.add(avatar);
-  mixer = new THREE.AnimationMixer(avatar);
-  startBlinking();
-}, undefined, e => console.error('❌ GLB load error:', e));
+    scene.add(avatar);
+    mixer = new THREE.AnimationMixer(avatar);
+    startBlinking();
+  },
+  undefined,
+  e => console.error('❌ GLB load error:', e)
+);
 
 // ——— RENDER LOOP ———
 const clock = new THREE.Clock();
 (function animate() {
   requestAnimationFrame(animate);
+
+  // idle: gentle side-to-side sway
+  if (avatarRoot) {
+    const t = clock.getElapsedTime();
+    avatarRoot.rotation.y = Math.sin(t * 0.5) * 0.2;
+  }
+
   mixer?.update(clock.getDelta());
   renderer.render(scene, camera);
 })();
@@ -120,6 +135,11 @@ function resetAll() {
   });
 }
 
+// expose helpers for console testing
+window.setExpression = setExpression;
+window.resetAll      = resetAll;
+window.startBlinking = startBlinking;
+
 // ——— FLUTTER BRIDGE ———
 window.receiveFromFlutter = async ({ text, audioBase64 }) => {
   console.log('▶️ receiveFromFlutter called with', text, audioBase64?.slice(0,30) + '...');
@@ -141,7 +161,6 @@ window.receiveFromFlutter = async ({ text, audioBase64 }) => {
       console.log('▶️ playing audio…');
       audio.onplay = () => {
         console.log('▶️ audio.onplay');
-        // use viseme_O fallback to viseme_aa
         const vis = morphDict['viseme_O'] ?? morphDict['viseme_aa'] ?? 0;
         avatarMesh.morphTargetInfluences[vis] = 1;
       };
