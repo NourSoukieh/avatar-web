@@ -6,10 +6,10 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const canvas = document.getElementById('avatar');
 const scene  = new THREE.Scene();
-let avatarRoot; // for idle rotation
+let avatarRoot;
 
 // ——— BRIGHT THREE-POINT LIGHTING ———
-scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 1.0));  // bright fill
+scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 1.0));
 const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
 keyLight.position.set(3, 10, 5);
 scene.add(keyLight);
@@ -59,8 +59,8 @@ loader.load(
 
     // center pivot & position
     avatar.position.sub(center);
-    avatar.position.y -= minY;                 // feet at y=0
-    avatar.position.y += size.y * 0.15;        // lift head into view
+    avatar.position.y -= minY;       
+    avatar.position.y += size.y * 0.15;
 
     // cache mesh & dict, drop arms
     avatar.traverse(obj => {
@@ -69,26 +69,24 @@ loader.load(
         morphDict  = obj.morphTargetDictionary;
       }
       if (obj.isBone && obj.name.toLowerCase().includes('upperarm')) {
-        if (obj.name.toLowerCase().includes('right')) {
-          obj.rotation.z = -Math.PI / 2;
-        } else {
-          obj.rotation.z = Math.PI / 2;
-        }
+        obj.rotation.z = obj.name.toLowerCase().includes('right')
+          ? -Math.PI / 2
+          :  Math.PI / 2;
       }
     });
 
-    // — sanity-check: list morph keys & test shapes —
-    console.log('🔍 Morph target keys:', Object.keys(morphDict || {}));
-    console.log('🔍 gltf.animations:', gltf.animations.map(a => a.name));
-    // test blink & mouth-open
-    setExpression('eyeBlinkLeft',  1.0, 2000);
-    setExpression('eyeBlinkRight', 1.0, 2000);
-    setTimeout(() => setExpression('mouthOpen', 1.0, 2000), 2500);
-    // — end sanity-check —
-
+    // add to scene & start mixer
     scene.add(avatar);
     mixer = new THREE.AnimationMixer(avatar);
     startBlinking();
+
+    // delayed sanity-check so first frame is rendered
+    setTimeout(() => {
+      console.log('🔧 Running delayed sanity test...');
+      setExpression('eyeBlinkLeft',  1.0, 2000);
+      setExpression('eyeBlinkRight', 1.0, 2000);
+      setTimeout(() => setExpression('mouthOpen', 1.0, 2000), 2500);
+    }, 500);
   },
   undefined,
   e => console.error('❌ GLB load error:', e)
@@ -136,14 +134,13 @@ function resetAll() {
 }
 
 // expose helpers for console testing
-window.setExpression = setExpression;
-window.resetAll      = resetAll;
-window.startBlinking = startBlinking;
+window.setExpression    = setExpression;
+window.resetAll         = resetAll;
+window.startBlinking    = startBlinking;
 
 // ——— FLUTTER BRIDGE ———
 window.receiveFromFlutter = async ({ text, audioBase64 }) => {
   console.log('▶️ receiveFromFlutter called with', text, audioBase64?.slice(0,30) + '...');
-  // 1) Facial cues
   if (/[!?]$/.test(text.trim())) {
     setExpression('browOuterUpLeft',  1, 800);
     setExpression('browOuterUpRight', 1, 800);
@@ -154,7 +151,6 @@ window.receiveFromFlutter = async ({ text, audioBase64 }) => {
     setExpression('mouthSmile', 0.6, 800);
   }
 
-  // 2) Play Flutter-generated audio
   if (audioBase64) {
     return new Promise(resolve => {
       const audio = new Audio('data:audio/mp3;base64,' + audioBase64);
