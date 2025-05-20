@@ -27,7 +27,7 @@ scene.add(groundLight);
 const camera = new THREE.PerspectiveCamera(25, window.innerWidth / window.innerHeight, 0.1, 100);
 
 // Pull the camera in closer on Z, and raise it slightly on Y
-camera.position.set(0, 1.4, 2.0);
+camera.position.set(0, 1.4, 3.0);
 
 // Aim a little above the model's origin—towards the head
 camera.lookAt(0, 1.3, 0);
@@ -73,6 +73,12 @@ loader.load(`./FinalAvatarCoach.glb?cb=${Date.now()}`, gltf => {
       }
     }
   });
+
+    // inspect morph targets:
+  console.log('🔍 Morph target keys:', Object.keys(morphDict || {}));
+  
+  // inspect any glTF animation clips:
+  console.log('🔍 gltf.animations:', gltf.animations.map(a => a.name));
 
   scene.add(avatar);
   mixer = new THREE.AnimationMixer(avatar);
