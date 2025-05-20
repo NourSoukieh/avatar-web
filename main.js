@@ -25,17 +25,15 @@ scene.add(groundLight);
 // ——— CAMERA & RENDERER ———
 // tighter FOV + closer for a zoomed-in view
 const camera = new THREE.PerspectiveCamera(25, window.innerWidth / window.innerHeight, 0.1, 100);
-
 // Pull the camera in closer on Z, and raise it slightly on Y
 camera.position.set(0, 1.4, 3.0);
-
 // Aim a little above the model's origin—towards the head
 camera.lookAt(0, 1.3, 0);
 
 const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
@@ -49,9 +47,9 @@ loader.load(`./FinalAvatarCoach.glb?cb=${Date.now()}`, gltf => {
   const avatar = gltf.scene;
 
   // compute bounding box
-  const box  = new THREE.Box3().setFromObject(avatar);
-  const size = box.getSize(new THREE.Vector3());
-  const minY = box.min.y;
+  const box    = new THREE.Box3().setFromObject(avatar);
+  const size   = box.getSize(new THREE.Vector3());
+  const minY   = box.min.y;
   const center = box.getCenter(new THREE.Vector3());
 
   // center pivot & position
@@ -74,11 +72,14 @@ loader.load(`./FinalAvatarCoach.glb?cb=${Date.now()}`, gltf => {
     }
   });
 
-    // inspect morph targets:
+  // — sanity-check: list morph keys & test shapes —
   console.log('🔍 Morph target keys:', Object.keys(morphDict || {}));
-  
-  // inspect any glTF animation clips:
   console.log('🔍 gltf.animations:', gltf.animations.map(a => a.name));
+  // test blink & mouth-open
+  setExpression('eyeBlinkLeft',  1.0, 1000);
+  setExpression('eyeBlinkRight', 1.0, 1000);
+  setTimeout(() => setExpression('mouthOpen', 1.0, 1000), 1200);
+  // — end sanity-check —
 
   scene.add(avatar);
   mixer = new THREE.AnimationMixer(avatar);
@@ -121,12 +122,12 @@ function resetAll() {
 
 // ——— FLUTTER BRIDGE ———
 window.receiveFromFlutter = async ({ text, audioBase64 }) => {
-  console.log('▶️ receiveFromFlutter called with', text, audioBase64?.slice(0,30));
+  console.log('▶️ receiveFromFlutter called with', text, audioBase64?.slice(0,30) + '...');
   // 1) Facial cues
   if (/[!?]$/.test(text.trim())) {
-    setExpression('browOuterUpLeft', 1, 800);
-    setExpression('browOuterUpRight',1, 800);
-  } else if (text.toLowerCase().contains('sorry')) {
+    setExpression('browOuterUpLeft',  1, 800);
+    setExpression('browOuterUpRight', 1, 800);
+  } else if (text.toLowerCase().includes('sorry')) {
     setExpression('mouthFrownLeft',  0.8, 800);
     setExpression('mouthFrownRight', 0.8, 800);
   } else {
@@ -137,18 +138,24 @@ window.receiveFromFlutter = async ({ text, audioBase64 }) => {
   if (audioBase64) {
     return new Promise(resolve => {
       const audio = new Audio('data:audio/mp3;base64,' + audioBase64);
+      console.log('▶️ playing audio…');
       audio.onplay = () => {
-        const vis = morphDict['viseme_O'] ?? morphDict['viseme_A'] ?? 0;
+        console.log('▶️ audio.onplay');
+        // use viseme_O fallback to viseme_aa
+        const vis = morphDict['viseme_O'] ?? morphDict['viseme_aa'] ?? 0;
         avatarMesh.morphTargetInfluences[vis] = 1;
       };
       audio.onended = () => {
+        console.log('▶️ audio.onended');
         resetAll();
         resolve();
       };
-      audio.play();
+      audio.play().catch(err => {
+        console.error('❌ audio.play() failed:', err);
+        resolve();
+      });
     });
   }
 
-  // no fallback
   return Promise.resolve();
 };
