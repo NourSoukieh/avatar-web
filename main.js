@@ -6,22 +6,18 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const canvas = document.getElementById('avatar');
 const scene  = new THREE.Scene();
-let avatarRoot;
+let avatarRoot, mixer;
 
-// ——— BRIGHT THREE-POINT LIGHTING ———
+// ——— LIGHTING ———
 scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 1.0));
 const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
-keyLight.position.set(3, 10, 5);
-scene.add(keyLight);
+keyLight.position.set(3, 10, 5); scene.add(keyLight);
 const fillLight = new THREE.DirectionalLight(0xffffff, 1.0);
-fillLight.position.set(-3, 5, 5);
-scene.add(fillLight);
+fillLight.position.set(-3, 5, 5); scene.add(fillLight);
 const rimLight = new THREE.DirectionalLight(0xffffff, 0.7);
-rimLight.position.set(0, 5, -5);
-scene.add(rimLight);
+rimLight.position.set(0, 5, -5); scene.add(rimLight);
 const groundLight = new THREE.PointLight(0xffffff, 0.5, 10);
-groundLight.position.set(0, 0.3, 0);
-scene.add(groundLight);
+groundLight.position.set(0, 0.3, 0); scene.add(groundLight);
 
 // ——— CAMERA & RENDERER ———
 const camera = new THREE.PerspectiveCamera(
@@ -36,37 +32,35 @@ camera.lookAt(0, 1.3, 0);
 const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.aspect = window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
 // ——— LOAD & FRAME AVATAR ———
 const loader = new GLTFLoader();
-let mixer, morphDict, avatarMesh;
+// Will hold { mesh, dict } entries for _every_ morph-target mesh:
+const morphMeshes = [];
+
 loader.load(
   `./FinalAvatarCoach.glb?cb=${Date.now()}`,
   gltf => {
     console.log('✅ FinalAvatarCoach.glb loaded');
     avatarRoot = gltf.scene;
-    const avatar = avatarRoot;
 
-    // compute bounding box
-    const box    = new THREE.Box3().setFromObject(avatar);
+    // Frame & position the avatar
+    const box    = new THREE.Box3().setFromObject(avatarRoot);
     const size   = box.getSize(new THREE.Vector3());
     const minY   = box.min.y;
     const center = box.getCenter(new THREE.Vector3());
+    avatarRoot.position.sub(center);
+    avatarRoot.position.y -= minY;
+    avatarRoot.position.y += size.y * 0.15;
 
-    // center pivot & position
-    avatar.position.sub(center);
-    avatar.position.y -= minY;       
-    avatar.position.y += size.y * 0.15;
-
-    // cache mesh & dict, drop arms
-    avatar.traverse(obj => {
+    // Traverse once: collect all morph meshes & drop arms
+    avatarRoot.traverse(obj => {
       if (obj.isMesh && obj.morphTargetDictionary) {
-        avatarMesh = obj;
-        morphDict  = obj.morphTargetDictionary;
+        morphMeshes.push({ mesh: obj, dict: obj.morphTargetDictionary });
       }
       if (obj.isBone && obj.name.toLowerCase().includes('upperarm')) {
         obj.rotation.z = obj.name.toLowerCase().includes('right')
@@ -75,12 +69,14 @@ loader.load(
       }
     });
 
-    // add to scene & start mixer
-    scene.add(avatar);
-    mixer = new THREE.AnimationMixer(avatar);
+    console.log(`🔍 Collected ${morphMeshes.length} morph meshes`);
+    console.log('🔍 Example keys:', Object.keys(morphMeshes[0].dict).slice(0,10));
+
+    scene.add(avatarRoot);
+    mixer = new THREE.AnimationMixer(avatarRoot);
     startBlinking();
 
-    // delayed sanity-check so first frame is rendered
+    // delayed sanity-check so you actually see it:
     setTimeout(() => {
       console.log('🔧 Running delayed sanity test...');
       setExpression('eyeBlinkLeft',  1.0, 2000);
@@ -97,7 +93,7 @@ const clock = new THREE.Clock();
 (function animate() {
   requestAnimationFrame(animate);
 
-  // idle: gentle side-to-side sway
+  // subtle idle sway
   if (avatarRoot) {
     const t = clock.getElapsedTime();
     avatarRoot.rotation.y = Math.sin(t * 0.5) * 0.2;
@@ -109,13 +105,11 @@ const clock = new THREE.Clock();
 
 // ——— HELPERS ———
 function setExpression(name, weight = 1, duration = 300) {
-  if (!morphDict || !avatarMesh) return;
-  const idx = morphDict[name];
-  if (idx == null) return;
-  avatarMesh.morphTargetInfluences[idx] = weight;
-  setTimeout(() => {
-    avatarMesh.morphTargetInfluences[idx] = 0;
-  }, duration);
+  morphMeshes.forEach(({ mesh, dict }) => {
+    const idx = dict[name];
+    if (idx != null) mesh.morphTargetInfluences[idx] = weight;
+  });
+  setTimeout(() => resetAll(), duration);
 }
 
 function startBlinking() {
@@ -127,24 +121,23 @@ function startBlinking() {
 }
 
 function resetAll() {
-  if (!morphDict || !avatarMesh) return;
-  Object.values(morphDict).forEach(i => {
-    avatarMesh.morphTargetInfluences[i] = 0;
+  morphMeshes.forEach(({ mesh }) => {
+    for (let i = 0; i < mesh.morphTargetInfluences.length; i++) {
+      mesh.morphTargetInfluences[i] = 0;
+    }
   });
 }
 
-// expose helpers for console testing
-window.setExpression    = setExpression;
-window.resetAll         = resetAll;
-window.startBlinking    = startBlinking;
-
-// … your existing imports, setup, helpers, etc. …
+// expose for console-testing
+window.setExpression = setExpression;
+window.resetAll      = resetAll;
+window.startBlinking = startBlinking;
 
 // ——— FLUTTER BRIDGE ———
 window.receiveFromFlutter = async ({ text }) => {
-  console.log('▶️ receiveFromFlutter called with', text);
+  console.log('▶️ receiveFromFlutter:', text);
 
-  // 1) Facial cues (same as before)
+  // 1) Facial cues
   if (/[!?]$/.test(text.trim())) {
     setExpression('browOuterUpLeft',  1, 800);
     setExpression('browOuterUpRight', 1, 800);
@@ -155,19 +148,20 @@ window.receiveFromFlutter = async ({ text }) => {
     setExpression('mouthSmile', 0.6, 800);
   }
 
-  // 2) Use Web Speech API for TTS + lip-sync
+  // 2) Speak & lip-sync via Web Speech API
   return new Promise(resolve => {
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'en-US';
 
-    utter.onboundary = ev => {
-      // pick a viseme index on every word boundary
-      const vis = morphDict['viseme_O'] 
-                ?? morphDict['viseme_aa'] 
-                ?? morphDict['mouthOpen'] 
-                ?? 0;
-      avatarMesh.morphTargetInfluences[vis] = 1;
-      setTimeout(() => avatarMesh.morphTargetInfluences[vis] = 0, 100);
+    utter.onboundary = () => {
+      // choose a viseme or fallback to mouthOpen
+      const visNames = ['viseme_O','viseme_aa','mouthOpen'];
+      // apply to all meshes
+      morphMeshes.forEach(({ mesh, dict }) => {
+        const idx = dict[visNames.find(n => dict[n]!=null)] ?? 0;
+        mesh.morphTargetInfluences[idx] = 1;
+      });
+      setTimeout(() => resetAll(), 100);
     };
 
     utter.onend = () => {
