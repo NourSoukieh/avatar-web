@@ -138,9 +138,13 @@ window.setExpression    = setExpression;
 window.resetAll         = resetAll;
 window.startBlinking    = startBlinking;
 
+// … your existing imports, setup, helpers, etc. …
+
 // ——— FLUTTER BRIDGE ———
-window.receiveFromFlutter = async ({ text, audioBase64 }) => {
-  console.log('▶️ receiveFromFlutter called with', text, audioBase64?.slice(0,30) + '...');
+window.receiveFromFlutter = async ({ text }) => {
+  console.log('▶️ receiveFromFlutter called with', text);
+
+  // 1) Facial cues (same as before)
   if (/[!?]$/.test(text.trim())) {
     setExpression('browOuterUpLeft',  1, 800);
     setExpression('browOuterUpRight', 1, 800);
@@ -151,26 +155,26 @@ window.receiveFromFlutter = async ({ text, audioBase64 }) => {
     setExpression('mouthSmile', 0.6, 800);
   }
 
-  if (audioBase64) {
-    return new Promise(resolve => {
-      const audio = new Audio('data:audio/mp3;base64,' + audioBase64);
-      console.log('▶️ playing audio…');
-      audio.onplay = () => {
-        console.log('▶️ audio.onplay');
-        const vis = morphDict['viseme_O'] ?? morphDict['viseme_aa'] ?? 0;
-        avatarMesh.morphTargetInfluences[vis] = 1;
-      };
-      audio.onended = () => {
-        console.log('▶️ audio.onended');
-        resetAll();
-        resolve();
-      };
-      audio.play().catch(err => {
-        console.error('❌ audio.play() failed:', err);
-        resolve();
-      });
-    });
-  }
+  // 2) Use Web Speech API for TTS + lip-sync
+  return new Promise(resolve => {
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'en-US';
 
-  return Promise.resolve();
+    utter.onboundary = ev => {
+      // pick a viseme index on every word boundary
+      const vis = morphDict['viseme_O'] 
+                ?? morphDict['viseme_aa'] 
+                ?? morphDict['mouthOpen'] 
+                ?? 0;
+      avatarMesh.morphTargetInfluences[vis] = 1;
+      setTimeout(() => avatarMesh.morphTargetInfluences[vis] = 0, 100);
+    };
+
+    utter.onend = () => {
+      resetAll();
+      resolve();
+    };
+
+    speechSynthesis.speak(utter);
+  });
 };
