@@ -27,7 +27,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   100
 );
-camera.position.set(0, 1.8, 1.7);  // raise camera, pull in
+camera.position.set(0, 1.8, 1.4);  // raise camera, pull in
 camera.lookAt(0, 1.5, 0);          // look slightly above origin
 
 const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
