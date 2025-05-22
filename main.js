@@ -22,7 +22,7 @@ groundLight.position.set(0, 0.3, 0); scene.add(groundLight);
 // ——— CAMERA & RENDERER ———
 // Zoom in on the head: tighter FOV + higher Y focus
 const camera = new THREE.PerspectiveCamera(
-  35,
+  50,
   window.innerWidth / window.innerHeight,
   0.1,
   100
