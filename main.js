@@ -43,9 +43,9 @@ const loader = new GLTFLoader();
 const morphMeshes = [];
 
 loader.load(
-  `./metaHuman.glb?cb=${Date.now()}`,
+  `./updatedMeta.glb?cb=${Date.now()}`,
   gltf => {
-    console.log('✅ metaHuman.glb loaded');
+    console.log('✅ updatedMeta.glb loaded');
     avatarRoot = gltf.scene;
 
     // Frame & center whole avatar
