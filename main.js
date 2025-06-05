@@ -95,13 +95,18 @@ loader.load(
     mixer = new THREE.AnimationMixer(avatarRoot);
     startBlinking();
 
+    if (gltf.animations && gltf.animations.length > 0) {
+      const action = mixer.clipAction(gltf.animations[0]);
+      action.play();
+      console.log(`🎬 Playing animation: ${gltf.animations[0].name}`);
+    }
     // Delayed sanity‐check blink + mouthOpen
-    setTimeout(() => {
+    /*setTimeout(() => {
       console.log('🔧 Sanity test: blinking + mouthOpen');
       setExpression('eyeBlinkLeft',  1.0, 1500);
       setExpression('eyeBlinkRight', 1.0, 1500);
       setTimeout(() => setExpression('mouthOpen', 1.0, 1500), 1800);
-    }, 800);
+    }, 800);*/
   },
   undefined,
   err => console.error('❌ GLB load error:', err)
