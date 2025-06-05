@@ -27,7 +27,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   100
 );
-camera.position.set(0, 1.8, 1.4);  // raise camera, pull in
+camera.position.set(0, 1.60, 1.4);  // raise camera, pull in
 camera.lookAt(0, 1.4, 0);          // look slightly above origin
 
 const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
@@ -145,15 +145,24 @@ function startBlinking() {
 }
 
 function startTalkingLoop() {
-  let open = true;
-  const talkInterval = setInterval(() => {
-    setExpression('mouthOpen', open ? 1 : 0, 200);
-    open = !open;
-  }, 200);
+  const visemes = [
+    'viseme_aa',
+    'viseme_O',
+    'viseme_I',
+    'viseme_E',
+    'viseme_U',
+    'jawOpen'
+  ];
 
-  // Store it in window so we can stop it later
+  const talkInterval = setInterval(() => {
+    resetAll(); // Reset all expressions
+    const viseme = visemes[Math.floor(Math.random() * visemes.length)];
+    setExpression(viseme, 1.0, 180);
+  }, 180);
+
   window._talkingInterval = talkInterval;
 }
+
 function stopTalkingLoop() {
   clearInterval(window._talkingInterval);
   resetAll();
