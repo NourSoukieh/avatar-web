@@ -28,7 +28,7 @@ const camera = new THREE.PerspectiveCamera(
   100
 );
 camera.position.set(0, 1.8, 1.4);  // raise camera, pull in
-camera.lookAt(0, 1.5, 0);          // look slightly above origin
+camera.lookAt(0, 1.4, 0);          // look slightly above origin
 
 const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -186,7 +186,7 @@ window.receiveFromFlutter = async ({ text }) => {
   }
 
   // Lip-sync via Web Speech API
-  return new Promise(resolve => {
+  /*return new Promise(resolve => {
     startTalkingLoop();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'en-US';
@@ -208,5 +208,21 @@ window.receiveFromFlutter = async ({ text }) => {
     };
 
     speechSynthesis.speak(utter);
+  });*/
+  
+  // Lip-sync via Web Speech API
+  return new Promise(resolve => {
+    startTalkingLoop();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'en-US';
+  
+    utter.onend = () => {
+      stopTalkingLoop();
+      resetAll();
+      resolve();
+    };
+  
+    speechSynthesis.speak(utter);
   });
-};
+  
+  };
