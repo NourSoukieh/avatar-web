@@ -221,24 +221,23 @@ window.receiveFromFlutter = async ({ text }) => {
   });*/
   
   // Lip-sync via Web Speech API
-  return new Promise(resolve => {
-    startTalkingLoop();
-    setTimeout(() => stopTalkingLoop(), 3000);
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = 'en-US';
+  window.receiveFromFlutter = async ({ text }) => {
+  console.log('▶️ receiveFromFlutter:', text);
 
-    utter.onerror = (e) => {
-    console.error('❌ Speech synthesis failed:', e.error);
-    };
+  // Facial emotion cues
+  if (/[!?]$/.test(text.trim())) {
+    setExpression('browOuterUpLeft',  1, 800);
+    setExpression('browOuterUpRight', 1, 800);
+  } else if (text.toLowerCase().includes('sorry')) {
+    setExpression('mouthFrownLeft',  0.8, 800);
+    setExpression('mouthFrownRight', 0.8, 800);
+  } else {
+    setExpression('mouthSmile', 0.6, 800);
+  }
 
-  
-    utter.onend = () => {
-      stopTalkingLoop();
-      resetAll();
-      resolve();
-    };
-  
-    speechSynthesis.speak(utter);
-  });
+  // Just start loop — stop will be handled by Flutter
+  startTalkingLoop();
+};
+
   
   };
