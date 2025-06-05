@@ -222,6 +222,7 @@ window.receiveFromFlutter = async ({ text }) => {
   // Lip-sync via Web Speech API
   return new Promise(resolve => {
     startTalkingLoop();
+    setTimeout(() => stopTalkingLoop(), 3000);
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'en-US';
   
