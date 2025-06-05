@@ -96,10 +96,14 @@ loader.load(
     startBlinking();
 
     if (gltf.animations && gltf.animations.length > 0) {
-      const action = mixer.clipAction(gltf.animations[0]);
+      const clip = gltf.animations[0];
+      const action = mixer.clipAction(clip);
+      action.setLoop(THREE.LoopRepeat);
       action.play();
-      console.log(`🎬 Playing animation: ${gltf.animations[0].name}`);
+      console.log(`🎬 Playing animation: ${clip.name}`);
+      console.log(`⏱ Animation duration: ${clip.duration.toFixed(2)}s`);
     }
+
     // Delayed sanity‐check blink + mouthOpen
     /*setTimeout(() => {
       console.log('🔧 Sanity test: blinking + mouthOpen');
@@ -117,13 +121,9 @@ const clock = new THREE.Clock();
 (function animate() {
   requestAnimationFrame(animate);
 
-  // gentle idle sway
-  if (avatarRoot) {
-    const t = clock.getElapsedTime();
-    avatarRoot.rotation.y = Math.sin(t * 0.3) * 0.15;
-  }
+  const delta = clock.getDelta();
+  mixer?.update(delta);
 
-  mixer?.update(clock.getDelta());
   renderer.render(scene, camera);
 })();
 
