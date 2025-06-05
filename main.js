@@ -43,9 +43,9 @@ const loader = new GLTFLoader();
 const morphMeshes = [];
 
 loader.load(
-  `./updatedMeta.glb?cb=${Date.now()}`,
+  `./Animated_IDLE_coach.glb?cb=${Date.now()}`,
   gltf => {
-    console.log('✅ updatedMeta.glb loaded');
+    console.log('✅ Animated_IDLE_coach.glb loaded');
     avatarRoot = gltf.scene;
 
     // Frame & center whole avatar
