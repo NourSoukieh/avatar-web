@@ -140,7 +140,7 @@ function startBlinking() {
   (function blink(){
     setExpression('eyeBlinkLeft',  1.0, 150);
     setExpression('eyeBlinkRight', 1.0, 150);
-    setTimeout(blink, 3000 + Math.random()*3000);
+    setTimeout(blink, 3000 + Math.random()*1500);
   })();
 }
 
@@ -187,6 +187,7 @@ window.receiveFromFlutter = async ({ text }) => {
 
   // Lip-sync via Web Speech API
   return new Promise(resolve => {
+    startTalkingLoop();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'en-US';
 
@@ -201,6 +202,7 @@ window.receiveFromFlutter = async ({ text }) => {
     };
 
     utter.onend = () => {
+      stopTalkingLoop();
       resetAll();
       resolve();
     };
