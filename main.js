@@ -182,6 +182,7 @@ window.startBlinking = startBlinking;
 // ——— FLUTTER BRIDGE ———
 window.receiveFromFlutter = async ({ text }) => {
   console.log('▶️ receiveFromFlutter:', text);
+  
 
   // Facial emotion cues
   if (/[!?]$/.test(text.trim())) {
@@ -225,6 +226,11 @@ window.receiveFromFlutter = async ({ text }) => {
     setTimeout(() => stopTalkingLoop(), 3000);
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'en-US';
+
+    utter.onerror = (e) => {
+    console.error('❌ Speech synthesis failed:', e.error);
+    };
+
   
     utter.onend = () => {
       stopTalkingLoop();
