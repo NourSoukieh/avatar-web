@@ -144,6 +144,21 @@ function startBlinking() {
   })();
 }
 
+function startTalkingLoop() {
+  let open = true;
+  const talkInterval = setInterval(() => {
+    setExpression('mouthOpen', open ? 1 : 0, 200);
+    open = !open;
+  }, 200);
+
+  // Store it in window so we can stop it later
+  window._talkingInterval = talkInterval;
+}
+function stopTalkingLoop() {
+  clearInterval(window._talkingInterval);
+  resetAll();
+}
+
 function resetAll() {
   morphMeshes.forEach(({ mesh }) => {
     mesh.morphTargetInfluences.fill(0);
