@@ -146,12 +146,12 @@ function startBlinking() {
 
 function startTalkingLoop() {
   const visemes = [
+    'mouthOpen',
     'viseme_aa',
     'viseme_O',
     'viseme_I',
     'viseme_E',
-    'viseme_U',
-    'jawOpen'
+    'viseme_U'
   ];
 
   const talkInterval = setInterval(() => {
@@ -219,25 +219,5 @@ window.receiveFromFlutter = async ({ text }) => {
 
     speechSynthesis.speak(utter);
   });*/
-  
-  // Lip-sync via Web Speech API
-  window.receiveFromFlutter = async ({ text }) => {
-  console.log('▶️ receiveFromFlutter:', text);
-
-  // Facial emotion cues
-  if (/[!?]$/.test(text.trim())) {
-    setExpression('browOuterUpLeft',  1, 800);
-    setExpression('browOuterUpRight', 1, 800);
-  } else if (text.toLowerCase().includes('sorry')) {
-    setExpression('mouthFrownLeft',  0.8, 800);
-    setExpression('mouthFrownRight', 0.8, 800);
-  } else {
-    setExpression('mouthSmile', 0.6, 800);
-  }
-
-  // Just start loop — stop will be handled by Flutter
-  startTalkingLoop();
+ 
 };
-
-  
-  };
