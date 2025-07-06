@@ -34,179 +34,24 @@
             height: 100%;
             font-size: 16px;
             color: #666;
-            flex-direction: column;
-        }
-
-        .permission-button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            margin: 10px;
-        }
-        
-        .permission-button:hover {
-            background-color: #0056b3;
-        }
-        
-        .status-message {
-            margin: 10px 0;
-            padding: 10px;
-            border-radius: 5px;
-            text-align: center;
-        }
-        
-        .success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
         }
     </style>
 </head>
 <body>
     <div id="agent-container">
         <div id="did-agent">
-            <div class="loading" id="loading-screen">
-                <p>Initializing AI Assistant...</p>
-                <div id="status-container"></div>
-            </div>
+            <div class="loading">Loading your AI assistant...</div>
         </div>
     </div>
-    
-    <script>
-        let permissionGranted = false;
-        let agentLoaded = false;
-        
-        function showStatus(message, type = 'info') {
-            const statusContainer = document.getElementById('status-container');
-            statusContainer.innerHTML = `<div class="status-message ${type}">${message}</div>`;
-        }
-        
-        function showPermissionButton() {
-            const statusContainer = document.getElementById('status-container');
-            statusContainer.innerHTML = `
-                <div class="status-message">
-                    <p>Microphone access is required for voice interaction</p>
-                    <button class="permission-button" onclick="requestMicrophonePermission()">
-                        Grant Microphone Access
-                    </button>
-                </div>
-            `;
-        }
-        
-        async function requestMicrophonePermission() {
-            try {
-                showStatus('Requesting microphone access...', 'info');
-                
-                // Request microphone permission
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }
-                });
-                
-                // Permission granted - stop the stream immediately
-                stream.getTracks().forEach(track => track.stop());
-                
-                permissionGranted = true;
-                showStatus('Microphone access granted! Loading AI assistant...', 'success');
-                
-                // Load the D-ID agent
-                setTimeout(() => {
-                    loadAgent();
-                }, 1000);
-                
-            } catch (err) {
-                console.error('Microphone permission denied:', err);
-                showStatus('Microphone access denied. Please enable microphone permissions in your browser settings and try again.', 'error');
-                
-                // Show try again button
-                setTimeout(() => {
-                    showPermissionButton();
-                }, 2000);
-            }
-        }
-        
-        function loadAgent() {
-            try {
-                // Hide loading screen
-                document.getElementById('loading-screen').style.display = 'none';
-                
-                // Create and load the D-ID agent script
-                const script = document.createElement('script');
-                script.type = 'module';
-                script.src = 'https://agent.d-id.com/v2/index.js';
-                script.setAttribute('data-mode', 'full');
-                script.setAttribute('data-client-key', 'Z29vZ2xlLW9hdXRoMnwxMTM4NTI4NzA0MzI0MzU2OTIxMzI6TWQ3R2xmeER6dlpDSURsaEMzSTBS');
-                script.setAttribute('data-agent-id', 'v2_agt_PfXem0JV');
-                script.setAttribute('data-name', 'did-agent');
-                script.setAttribute('data-monitor', 'true');
-                script.setAttribute('data-target-id', 'did-agent');
-                
-                script.onload = () => {
-                    agentLoaded = true;
-                    console.log('D-ID agent loaded successfully');
-                };
-                
-                script.onerror = (error) => {
-                    console.error('Failed to load D-ID agent:', error);
-                    document.getElementById('loading-screen').style.display = 'flex';
-                    showStatus('Failed to load AI assistant. Please refresh the page.', 'error');
-                };
-                
-                document.body.appendChild(script);
-                
-            } catch (error) {
-                console.error('Error loading agent:', error);
-                document.getElementById('loading-screen').style.display = 'flex';
-                showStatus('Error loading AI assistant. Please refresh the page.', 'error');
-            }
-        }
-        
-        // Check if we're in a WebView environment
-        function isWebView() {
-            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
-        }
-        
-        // Auto-initialize when page loads
-        window.addEventListener('load', () => {
-            console.log('Page loaded, checking microphone permissions...');
-            
-            // Check if microphone is available
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                showStatus('Microphone not available on this device', 'error');
-                return;
-            }
-            
-            // For WebView, try to request permission immediately
-            if (isWebView()) {
-                setTimeout(() => {
-                    requestMicrophonePermission();
-                }, 500);
-            } else {
-                // For regular browsers, show the permission button
-                showPermissionButton();
-            }
-        });
-        
-        // Handle visibility changes (when app comes back to foreground)
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && !agentLoaded && permissionGranted) {
-                loadAgent();
-            }
-        });
+
+    <script type="module"
+        src="https://agent.d-id.com/v2/index.js"
+        data-mode="full"
+        data-client-key="Z29vZ2xlLW9hdXRoMnwxMTM4NTI4NzA0MzI0MzU2OTIxMzI6TWQ3R2xmeER6dlpDSURsaEMzSTBS"
+        data-agent-id="v2_agt_PfXem0JV"
+        data-name="did-agent"
+        data-monitor="true"
+        data-target-id="did-agent">
     </script>
 </body>
 </html>
