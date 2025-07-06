@@ -1,5 +1,6 @@
 // main.js
-console.log('✅ main.js loaded');
+
+/*console.log('✅ main.js loaded');
 
 import * as THREE     from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -110,7 +111,7 @@ loader.load(
       setExpression('eyeBlinkLeft',  1.0, 1500);
       setExpression('eyeBlinkRight', 1.0, 1500);
       setTimeout(() => setExpression('mouthOpen', 1.0, 1500), 1800);
-    }, 800);*/
+    }, 800);*//*
   },
   undefined,
   err => console.error('❌ GLB load error:', err)
@@ -193,7 +194,7 @@ window.receiveFromFlutter = async ({ text }) => {
     setExpression('mouthFrownRight', 0.8, 800);
   } else {
     setExpression('mouthSmile', 0.6, 800);
-  }
+  }*?
 
   // Lip-sync via Web Speech API
   /*return new Promise(resolve => {
