@@ -35,23 +35,73 @@
             font-size: 16px;
             color: #666;
         }
+
+        .permission-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        
+        .permission-button:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
     <div id="agent-container">
         <div id="did-agent">
-            <div class="loading">Loading your AI assistant...</div>
+            <div class="loading">
+                <div>
+                    <p>Loading your AI assistant...</p>
+                    <button class="permission-button" onclick="requestMicrophonePermission()">
+                        Enable Microphone
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
-
-    <script type="module"
-        src="https://agent.d-id.com/v2/index.js"
-        data-mode="full"
-        data-client-key="Z29vZ2xlLW9hdXRoMnwxMTM4NTI4NzA0MzI0MzU2OTIxMzI6TWQ3R2xmeER6dlpDSURsaEMzSTBS"
-        data-agent-id="v2_agt_PfXem0JV"
-        data-name="did-agent"
-        data-monitor="true"
-        data-target-id="did-agent">
+    
+    <script>
+        async function requestMicrophonePermission() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                stream.getTracks().forEach(track => track.stop());
+                console.log('Microphone permission granted');
+                
+                // Hide the loading div and show the agent
+                document.querySelector('.loading').style.display = 'none';
+                loadAgent();
+            } catch (err) {
+                console.error('Microphone permission denied:', err);
+                alert('Microphone access is required for the AI assistant to work properly.');
+            }
+        }
+        
+        function loadAgent() {
+            const script = document.createElement('script');
+            script.type = 'module';
+            script.src = 'https://agent.d-id.com/v2/index.js';
+            script.setAttribute('data-mode', 'full');
+            script.setAttribute('data-client-key', 'Z29vZ2xlLW9hdXRoMnwxMTM4NTI4NzA0MzI0MzU2OTIxMzI6TWQ3R2xmeER6dlpDSURsaEMzSTBS');
+            script.setAttribute('data-agent-id', 'v2_agt_PfXem0JV');
+            script.setAttribute('data-name', 'did-agent');
+            script.setAttribute('data-monitor', 'true');
+            script.setAttribute('data-target-id', 'did-agent');
+            
+            document.body.appendChild(script);
+        }
+        
+        // Auto-request permission when page loads
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                requestMicrophonePermission();
+            }, 1000);
+        });
     </script>
 </body>
 </html>
