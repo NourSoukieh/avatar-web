@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>D-ID Avatar</title>
+  <meta charset="UTF-8" />
+  <style>
+    body {
+      margin: 0;
+      background-color: black;
+    }
+    #remoteVideo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  </style>
+</head>
+<body>
+  <video id="remoteVideo" autoplay playsinline></video>
+
+  <script>
+    let pc = null;
+    let streamId = null;
+    let sessionId = null;
+    let DID_API_KEY = '';
+    let GOOGLE_API_KEY = '';
+
+    const remoteVideo = document.getElementById('remoteVideo');
+
+    // ✅ Flutter will call this after page load
+    window.setApiKeys = function(googleKey, didKey) {
+      GOOGLE_API_KEY = googleKey;
+      DID_API_KEY = didKey;
+      console.log('✅ API keys injected');
+    };
+
+    async function startAvatar(text) {
+      if (!DID_API_KEY || !GOOGLE_API_KEY) {
+        console.error("❌ Missing API keys.");
+        return;
+      }
+
+      // Step 1: Create stream session
+      const streamRes = await fetch('https://api.d-id.com/talks/streams', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${DID_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          source_url: 'https://create-images-results.d-id.com/DefaultPresenters/ron-modern-biz-1.jpg',
+          config: { fluent: true, pad_audio: 0.2 },
+        }),
+      });
+
+      const data = await streamRes.json();
+      streamId = data.id;
+      sessionId = data.session_id;
+
+      // Step 2: Set up peer connection
+      pc = new RTCPeerConnection({ iceServers: [] });
+
+      pc.ontrack = (event) => {
+        remoteVideo.srcObject = event.streams[0];
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      await fetch(`https://api.d-id.com/talks/streams/${streamId}/sdp`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${DID_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sdp: offer.sdp }),
+      });
+
+      // Step 3: Add dummy audio track (required)
+      navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then(stream => {
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      });
+
+      // Step 4: Generate audio from Google TTS
+      const ttsResponse = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input: { text },
+          voice: { languageCode: 'en-US', name: 'en-US-Wavenet-D' },
+          audioConfig: { audioEncoding: 'MP3' }
+        })
+      });
+
+      const ttsData = await ttsResponse.json();
+      const audioContent = ttsData.audioContent;
+
+      // Step 5: Send audio to D-ID avatar
+      await fetch(`https://api.d-id.com/talks/streams/${streamId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${DID_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          script: {
+            type: 'audio',
+            audio: `data:audio/mp3;base64,${audioContent}`
+          }
+        }),
+      });
+    }
+
+    // ✅ Triggered by Flutter via WebViewController.postMessage
+    window.addEventListener("message", (event) => {
+      const msg = event.data;
+      if (typeof msg === 'string') {
+        startAvatar(msg);
+      }
+    });
+  </script>
+</body>
+</html>
