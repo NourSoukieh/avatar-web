@@ -78,7 +78,15 @@
                 loadAgent();
             } catch (err) {
                 console.error('Microphone permission denied:', err);
-                alert('Microphone access is required for the AI assistant to work properly.');
+                // Instead of alert, show a message in the UI
+                document.querySelector('.loading').innerHTML = `
+                    <div>
+                        <p style="color: red;">Microphone access is required for the AI assistant to work properly.</p>
+                        <button class="permission-button" onclick="requestMicrophonePermission()">
+                            Try Again
+                        </button>
+                    </div>
+                `;
             }
         }
         
