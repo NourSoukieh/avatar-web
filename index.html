@@ -72,16 +72,16 @@
         window.addEventListener('DOMContentLoaded', function() {
             console.log('D-ID Agent loading...');
             
-            // Request media permissions explicitly
+            // Request media permissions explicitly (microphone only)
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+                navigator.mediaDevices.getUserMedia({ audio: true })
                     .then(function(stream) {
-                        console.log('Media permissions granted');
+                        console.log('Microphone permission granted');
                         // Stop the stream as we just needed permission
                         stream.getTracks().forEach(track => track.stop());
                     })
                     .catch(function(err) {
-                        console.log('Media permission denied:', err);
+                        console.log('Microphone permission denied:', err);
                     });
             }
             
