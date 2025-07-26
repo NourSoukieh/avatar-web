@@ -9,22 +9,24 @@
             margin: 0;
             padding: 0;
             height: 100%;
+            width: 100%;
             font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
+            background-color: #000;
+            overflow: hidden;
         }
         
         #agent-container {
-            width: 100%;
+            width: 100vw;
             height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
         }
         
         #did-agent {
             width: 100%;
             height: 100%;
-            min-height: 300px;
         }
         
         .loading {
@@ -32,8 +34,20 @@
             align-items: center;
             justify-content: center;
             height: 100%;
-            font-size: 16px;
-            color: #666;
+            font-size: 18px;
+            color: #fff;
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+        }
+
+        /* Ensure the D-ID agent fills the entire screen */
+        did-streaming-agent {
+            width: 100% !important;
+            height: 100% !important;
+        }
+        
+        /* Hide any default margins/padding from D-ID component */
+        did-streaming-agent * {
+            box-sizing: border-box;
         }
     </style>
 </head>
@@ -43,14 +57,34 @@
             <div class="loading">Loading your AI assistant...</div>
         </div>
     </div>
+    
+    <script type="module"
+        src="https://agent.d-id.com/v2/index.js"
+        data-mode="full"
+        data-client-key="YXV0aDB8Njg4NGVjNmNkZDZhNTMyOGQ1Y2E3OTg2Olo1RldXTnlVUVh3eTJYLWh1MS1VNg=="
+        data-agent-id="v2_agt_xmSb54Zr"
+        data-name="did-agent"
+        data-monitor="true">
+    </script>
 
-   <script type="module"
-      src="https://agent.d-id.com/v2/index.js"
-      data-mode="full"
-      data-client-key="YXV0aDB8Njg4NGVjNmNkZDZhNTMyOGQ1Y2E3OTg2Olo1RldXTnlVUVh3eTJYLWh1MS1VNg=="
-      data-agent-id="v2_agt_xmSb54Zr"
-      data-name="did-agent"
-      data-monitor="true"
-</script>
+    <script>
+        // Ensure proper loading and error handling
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log('D-ID Agent loading...');
+            
+            // Remove loading message once agent loads
+            setTimeout(() => {
+                const loading = document.querySelector('.loading');
+                if (loading) {
+                    loading.style.display = 'none';
+                }
+            }, 5000);
+        });
+
+        // Handle any potential errors
+        window.addEventListener('error', function(e) {
+            console.error('Error loading D-ID agent:', e);
+        });
+    </script>
 </body>
 </html>
