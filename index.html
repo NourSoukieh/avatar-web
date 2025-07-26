@@ -72,6 +72,19 @@
         window.addEventListener('DOMContentLoaded', function() {
             console.log('D-ID Agent loading...');
             
+            // Request media permissions explicitly
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+                    .then(function(stream) {
+                        console.log('Media permissions granted');
+                        // Stop the stream as we just needed permission
+                        stream.getTracks().forEach(track => track.stop());
+                    })
+                    .catch(function(err) {
+                        console.log('Media permission denied:', err);
+                    });
+            }
+            
             // Remove loading message once agent loads
             setTimeout(() => {
                 const loading = document.querySelector('.loading');
