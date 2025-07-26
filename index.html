@@ -11,7 +11,7 @@
             height: 100%;
             width: 100%;
             font-family: Arial, sans-serif;
-            background-color: #000;
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
             overflow: hidden;
         }
         
@@ -27,22 +27,49 @@
         #did-agent {
             width: 100%;
             height: 100%;
+            background: transparent;
         }
         
         .loading {
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100%;
             font-size: 18px;
             color: #fff;
-            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            text-align: center;
+        }
+
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 3px solid #fff;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            color: #ff6b6b;
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 300px;
+            text-align: center;
         }
 
         /* Ensure the D-ID agent fills the entire screen */
         did-streaming-agent {
             width: 100% !important;
             height: 100% !important;
+            display: block !important;
         }
         
         /* Hide any default margins/padding from D-ID component */
@@ -54,7 +81,11 @@
 <body>
     <div id="agent-container">
         <div id="did-agent">
-            <div class="loading">Loading your AI assistant...</div>
+            <div class="loading" id="loading-state">
+                <div class="spinner"></div>
+                <div>Loading your AI assistant...</div>
+                <div style="font-size: 14px; margin-top: 10px; opacity: 0.8;">This may take a few moments</div>
+            </div>
         </div>
     </div>
     
@@ -64,39 +95,98 @@
         data-client-key="YXV0aDB8Njg4NGVjNmNkZDZhNTMyOGQ1Y2E3OTg2Olo1RldXTnlVUVh3eTJYLWh1MS1VNg=="
         data-agent-id="v2_agt_xmSb54Zr"
         data-name="did-agent"
-        data-monitor="true">
+        data-monitor="true"
+        data-target-id="did-agent">
     </script>
 
     <script>
-        // Ensure proper loading and error handling
+        let loadingTimeout;
+        
+        // Function to show error state
+        function showError(message) {
+            const container = document.getElementById('did-agent');
+            container.innerHTML = `
+                <div class="loading">
+                    <div class="error">
+                        <div style="font-size: 20px; margin-bottom: 10px;">⚠️</div>
+                        <div>Unable to load AI assistant</div>
+                        <div style="font-size: 14px; margin-top: 10px;">${message}</div>
+                        <button onclick="location.reload()" style="margin-top: 15px; padding: 8px 16px; background: #fff; border: none; border-radius: 5px; cursor: pointer;">
+                            Retry
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Enhanced loading and error handling
         window.addEventListener('DOMContentLoaded', function() {
-            console.log('D-ID Agent loading...');
+            console.log('D-ID Agent page loaded');
             
-            // Request media permissions explicitly (microphone only)
+            // Set a timeout for loading
+            loadingTimeout = setTimeout(() => {
+                const agentElement = document.querySelector('did-streaming-agent');
+                if (!agentElement) {
+                    console.error('D-ID agent failed to load within timeout');
+                    showError('The agent took too long to load. Please check your connection.');
+                }
+            }, 15000); // 15 second timeout
+
+            // Since Flutter already granted native permissions, 
+            // we just need to verify microphone access is available
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({ audio: true })
-                    .then(function(stream) {
-                        console.log('Microphone permission granted');
-                        // Stop the stream as we just needed permission
-                        stream.getTracks().forEach(track => track.stop());
-                    })
-                    .catch(function(err) {
-                        console.log('Microphone permission denied:', err);
-                    });
+                console.log('Media devices API available');
+                if (window.FlutterBridge) {
+                    window.FlutterBridge.postMessage('Media devices API available');
+                }
+            } else {
+                console.error('Media devices API not available');
+                showError('Media devices not available in this environment.');
+                if (window.FlutterBridge) {
+                    window.FlutterBridge.postMessage('Media devices API not available');
+                }
             }
             
-            // Remove loading message once agent loads
-            setTimeout(() => {
-                const loading = document.querySelector('.loading');
-                if (loading) {
-                    loading.style.display = 'none';
+            // Monitor for D-ID agent loading
+            const checkAgent = setInterval(() => {
+                const agentElement = document.querySelector('did-streaming-agent');
+                const loadingElement = document.getElementById('loading-state');
+                
+                if (agentElement) {
+                    console.log('D-ID agent element found and loaded');
+                    clearInterval(checkAgent);
+                    clearTimeout(loadingTimeout);
+                    
+                    if (loadingElement) {
+                        loadingElement.style.display = 'none';
+                    }
+                    
+                    if (window.FlutterBridge) {
+                        window.FlutterBridge.postMessage('D-ID agent loaded successfully');
+                    }
                 }
-            }, 5000);
+            }, 500);
+            
+            // Clear check after 20 seconds
+            setTimeout(() => {
+                clearInterval(checkAgent);
+            }, 20000);
         });
 
-        // Handle any potential errors
+        // Global error handler
         window.addEventListener('error', function(e) {
-            console.error('Error loading D-ID agent:', e);
+            console.error('JavaScript error:', e.message, e.filename, e.lineno);
+            if (window.FlutterBridge) {
+                window.FlutterBridge.postMessage('JavaScript error: ' + e.message);
+            }
+        });
+
+        // Handle unhandled promise rejections
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('Unhandled promise rejection:', e.reason);
+            if (window.FlutterBridge) {
+                window.FlutterBridge.postMessage('Promise rejection: ' + e.reason);
+            }
         });
     </script>
 </body>
