@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-ID Agent</title>
+    <title>D-ID Agent with Flutter Audio Bridge</title>
     <style>
         html, body {
             margin: 0;
@@ -51,6 +51,24 @@
             margin-bottom: 20px;
         }
 
+        .audio-status {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            z-index: 1000;
+            display: none;
+        }
+
+        .audio-status.recording {
+            background: rgba(255,0,0,0.8);
+            display: block;
+        }
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -65,75 +83,222 @@
     </style>
 </head>
 <body>
+    <div class="audio-status" id="audioStatus">🎤 Recording...</div>
+    
     <div id="agent-container">
         <div id="did-agent">
             <div class="loading" id="loading-state">
                 <div class="spinner"></div>
                 <div>Loading your AI assistant...</div>
-                <div style="font-size: 14px; margin-top: 10px; opacity: 0.8;">Initializing voice capabilities</div>
+                <div style="font-size: 14px; margin-top: 10px; opacity: 0.8;">Setting up Flutter audio bridge</div>
             </div>
         </div>
     </div>
     
     <script>
-        // Override getUserMedia before any scripts load
-        (function() {
-            console.log('Setting up media override...');
+        // Enhanced Flutter Audio Bridge
+        window.flutterAudioBridge = {
+            isRecording: false,
+            audioContext: null,
+            audioBuffer: [],
+            didAgent: null,
             
-            // Create a mock media stream
-            function createMockStream() {
-                return {
-                    getTracks: function() {
-                        return [{
-                            stop: function() { console.log('Mock track stopped'); },
-                            kind: 'audio',
-                            enabled: true,
-                            readyState: 'live',
-                            getSettings: function() { return { sampleRate: 44100 }; }
-                        }];
-                    },
-                    getAudioTracks: function() { return this.getTracks(); },
-                    getVideoTracks: function() { return []; }
-                };
-            }
+            init: function() {
+                console.log('Initializing Flutter Audio Bridge...');
+                this.setupAudioContext();
+                this.overrideGetUserMedia();
+            },
             
-            // Override navigator.mediaDevices.getUserMedia
-            if (navigator.mediaDevices) {
-                const originalGetUserMedia = navigator.mediaDevices.getUserMedia;
-                navigator.mediaDevices.getUserMedia = function(constraints) {
-                    console.log('getUserMedia called with constraints:', constraints);
-                    
-                    // Always return a resolved promise with mock stream
-                    return Promise.resolve(createMockStream());
-                };
-            } else {
-                // Create mediaDevices if it doesn't exist
-                navigator.mediaDevices = {
-                    getUserMedia: function(constraints) {
-                        console.log('Created mediaDevices.getUserMedia with constraints:', constraints);
-                        return Promise.resolve(createMockStream());
-                    }
-                };
-            }
+            setupAudioContext: function() {
+                try {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    console.log('Audio context created successfully');
+                } catch (e) {
+                    console.error('Failed to create audio context:', e);
+                }
+            },
             
-            // Override legacy getUserMedia
-            navigator.getUserMedia = navigator.getUserMedia || 
-                navigator.webkitGetUserMedia || 
-                navigator.mozGetUserMedia || 
-                navigator.msGetUserMedia;
+            overrideGetUserMedia: function() {
+                const self = this;
                 
-            if (navigator.getUserMedia) {
-                const originalGetUserMedia = navigator.getUserMedia;
-                navigator.getUserMedia = function(constraints, success, error) {
-                    console.log('Legacy getUserMedia called');
-                    if (success) {
-                        success(createMockStream());
-                    }
-                };
-            }
+                if (navigator.mediaDevices) {
+                    const originalGetUserMedia = navigator.mediaDevices.getUserMedia;
+                    navigator.mediaDevices.getUserMedia = function(constraints) {
+                        console.log('getUserMedia called with constraints:', constraints);
+                        
+                        if (constraints && constraints.audio) {
+                            console.log('Audio requested, using Flutter bridge');
+                            return self.createMockAudioStream();
+                        }
+                        
+                        return originalGetUserMedia.call(this, constraints);
+                    };
+                }
+                
+                // Override legacy getUserMedia
+                navigator.getUserMedia = navigator.getUserMedia || 
+                    navigator.webkitGetUserMedia || 
+                    navigator.mozGetUserMedia || 
+                    navigator.msGetUserMedia;
+                    
+                if (navigator.getUserMedia) {
+                    const originalGetUserMedia = navigator.getUserMedia;
+                    navigator.getUserMedia = function(constraints, success, error) {
+                        console.log('Legacy getUserMedia called');
+                        if (constraints && constraints.audio && success) {
+                            self.createMockAudioStream().then(success).catch(error);
+                        } else if (originalGetUserMedia) {
+                            originalGetUserMedia.call(this, constraints, success, error);
+                        }
+                    };
+                }
+            },
             
-            console.log('Media override setup complete');
-        })();
+            createMockAudioStream: function() {
+                return new Promise((resolve) => {
+                    if (!this.audioContext) {
+                        this.setupAudioContext();
+                    }
+                    
+                    // Create a more sophisticated mock stream
+                    const oscillator = this.audioContext.createOscillator();
+                    const gainNode = this.audioContext.createGain();
+                    const destination = this.audioContext.createMediaStreamDestination();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(destination);
+                    
+                    // Set up silent oscillator (for compatibility)
+                    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+                    oscillator.frequency.setValueAtTime(440, this.audioContext.currentTime);
+                    oscillator.start();
+                    
+                    const stream = destination.stream;
+                    const audioTrack = stream.getAudioTracks()[0];
+                    
+                    // Add event listeners to trigger Flutter recording
+                    const self = this;
+                    const originalAddEventListener = audioTrack.addEventListener;
+                    audioTrack.addEventListener = function(event, callback) {
+                        console.log('Audio track event listener added:', event);
+                        if (event === 'ended') {
+                            setTimeout(() => self.stopRecording(), 100);
+                        }
+                        if (originalAddEventListener) {
+                            originalAddEventListener.call(this, event, callback);
+                        }
+                    };
+                    
+                    // Start recording when stream is created
+                    setTimeout(() => {
+                        self.startRecording();
+                    }, 1000);
+                    
+                    console.log('Mock audio stream created successfully');
+                    resolve(stream);
+                });
+            },
+            
+            startRecording: function() {
+                if (this.isRecording) return;
+                
+                console.log('Starting Flutter audio recording...');
+                this.isRecording = true;
+                this.updateUI(true);
+                
+                // Notify Flutter to start recording
+                if (window.AudioBridge) {
+                    window.AudioBridge.postMessage(JSON.stringify({
+                        type: 'startRecording'
+                    }));
+                }
+                
+                // Notify D-ID agent if available
+                if (this.didAgent && this.didAgent.onAudioStart) {
+                    this.didAgent.onAudioStart();
+                }
+            },
+            
+            stopRecording: function() {
+                if (!this.isRecording) return;
+                
+                console.log('Stopping Flutter audio recording...');
+                this.isRecording = false;
+                this.updateUI(false);
+                
+                // Notify Flutter to stop recording
+                if (window.AudioBridge) {
+                    window.AudioBridge.postMessage(JSON.stringify({
+                        type: 'stopRecording'
+                    }));
+                }
+                
+                // Notify D-ID agent if available
+                if (this.didAgent && this.didAgent.onAudioStop) {
+                    this.didAgent.onAudioStop();
+                }
+            },
+            
+            processAudioData: function(audioData) {
+                if (!this.isRecording) return;
+                
+                console.log('Processing audio data from Flutter, size:', audioData.length);
+                
+                // Store audio data for processing
+                this.audioBuffer.push(audioData);
+                
+                // Forward to D-ID agent if available
+                if (this.didAgent && this.didAgent.processAudioData) {
+                    this.didAgent.processAudioData(audioData);
+                } else {
+                    // Try to find D-ID agent and forward audio
+                    this.forwardAudioToDidAgent(audioData);
+                }
+            },
+            
+            forwardAudioToDidAgent: function(audioData) {
+                // Try different ways to send audio to D-ID
+                const didElement = document.querySelector('did-streaming-agent');
+                if (didElement) {
+                    // Method 1: Direct property access
+                    if (didElement.agent && didElement.agent.processAudio) {
+                        didElement.agent.processAudio(audioData);
+                        return;
+                    }
+                    
+                    // Method 2: Custom event
+                    const event = new CustomEvent('flutterAudio', {
+                        detail: { audioData: audioData }
+                    });
+                    didElement.dispatchEvent(event);
+                }
+                
+                // Method 3: Global D-ID integration
+                if (window.DID && window.DID.processAudio) {
+                    window.DID.processAudio(audioData);
+                }
+            },
+            
+            updateUI: function(isRecording) {
+                const statusElement = document.getElementById('audioStatus');
+                if (statusElement) {
+                    if (isRecording) {
+                        statusElement.classList.add('recording');
+                        statusElement.textContent = '🎤 Recording via Flutter...';
+                    } else {
+                        statusElement.classList.remove('recording');
+                    }
+                }
+            },
+            
+            setDidAgent: function(agent) {
+                this.didAgent = agent;
+                console.log('D-ID agent reference set');
+            }
+        };
+        
+        // Initialize the bridge immediately
+        window.flutterAudioBridge.init();
     </script>
     
     <script type="module"
@@ -148,7 +313,7 @@
 
     <script>
         window.addEventListener('DOMContentLoaded', function() {
-            console.log('D-ID Agent page loaded');
+            console.log('D-ID Agent page loaded with Flutter audio bridge');
             
             // Monitor for D-ID agent loading
             const checkAgent = setInterval(() => {
@@ -159,17 +324,25 @@
                     console.log('D-ID agent element found and loaded');
                     clearInterval(checkAgent);
                     
+                    // Hide loading indicator
                     if (loadingElement) {
                         loadingElement.style.display = 'none';
                     }
                     
+                    // Set up D-ID agent integration
+                    setupDidAgentIntegration(agentElement);
+                    
+                    // Notify Flutter
                     if (window.FlutterBridge) {
-                        window.FlutterBridge.postMessage('D-ID agent loaded successfully');
+                        window.FlutterBridge.postMessage(JSON.stringify({
+                            type: 'agent_ready',
+                            message: 'D-ID agent loaded successfully with Flutter audio bridge'
+                        }));
                     }
                 }
             }, 500);
             
-            // Timeout after 20 seconds
+            // Timeout after 30 seconds
             setTimeout(() => {
                 clearInterval(checkAgent);
                 const agentElement = document.querySelector('did-streaming-agent');
@@ -178,29 +351,98 @@
                     document.getElementById('did-agent').innerHTML = `
                         <div class="loading">
                             <div style="color: #ff6b6b; font-size: 16px;">Failed to load agent</div>
+                            <div style="font-size: 14px; margin-top: 10px;">Please check your connection and try again</div>
                             <button onclick="location.reload()" style="margin-top: 15px; padding: 8px 16px; background: #fff; border: none; border-radius: 5px; cursor: pointer;">
                                 Retry
                             </button>
                         </div>
                     `;
                 }
-            }, 20000);
+            }, 30000);
         });
+        
+        function setupDidAgentIntegration(agentElement) {
+            console.log('Setting up D-ID agent integration...');
+            
+            // Store reference in Flutter bridge
+            window.flutterAudioBridge.setDidAgent(agentElement);
+            
+            // Set up event listeners for D-ID agent events
+            agentElement.addEventListener('speaking', function(event) {
+                console.log('D-ID agent speaking event:', event);
+                if (window.FlutterBridge) {
+                    window.FlutterBridge.postMessage(JSON.stringify({
+                        type: 'speaking_started'
+                    }));
+                }
+            });
+            
+            agentElement.addEventListener('idle', function(event) {
+                console.log('D-ID agent idle event:', event);
+                if (window.FlutterBridge) {
+                    window.FlutterBridge.postMessage(JSON.stringify({
+                        type: 'speaking_ended'
+                    }));
+                }
+            });
+            
+            // Listen for custom audio events
+            agentElement.addEventListener('flutterAudio', function(event) {
+                console.log('Received Flutter audio event:', event.detail);
+                // Process the audio data here if needed
+            });
+            
+            // Try to access the agent's internal API
+            try {
+                if (agentElement.agent) {
+                    const originalProcessAudio = agentElement.agent.processAudio;
+                    agentElement.agent.processAudio = function(audioData) {
+                        console.log('Intercepted D-ID processAudio call');
+                        if (originalProcessAudio) {
+                            originalProcessAudio.call(this, audioData);
+                        }
+                    };
+                }
+            } catch (e) {
+                console.warn('Could not access D-ID agent internal API:', e);
+            }
+            
+            console.log('D-ID agent integration setup complete');
+        }
 
         // Global error handlers
         window.addEventListener('error', function(e) {
-            console.error('JavaScript error:', e.message);
+            console.error('JavaScript error:', e.message, e.filename, e.lineno);
             if (window.FlutterBridge) {
-                window.FlutterBridge.postMessage('JavaScript error: ' + e.message);
+                window.FlutterBridge.postMessage(JSON.stringify({
+                    type: 'error',
+                    message: e.message,
+                    filename: e.filename,
+                    lineno: e.lineno
+                }));
             }
         });
 
         window.addEventListener('unhandledrejection', function(e) {
             console.error('Unhandled promise rejection:', e.reason);
             if (window.FlutterBridge) {
-                window.FlutterBridge.postMessage('Promise rejection: ' + e.reason);
+                window.FlutterBridge.postMessage(JSON.stringify({
+                    type: 'promise_rejection',
+                    reason: e.reason.toString()
+                }));
             }
         });
+        
+        // Debug function to test audio bridge
+        window.testAudioBridge = function() {
+            console.log('Testing audio bridge...');
+            if (window.flutterAudioBridge) {
+                window.flutterAudioBridge.startRecording();
+                setTimeout(() => {
+                    window.flutterAudioBridge.stopRecording();
+                }, 3000);
+            }
+        };
     </script>
 </body>
 </html>
